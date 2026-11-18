@@ -1,7 +1,7 @@
 /* Diamondback Lock & Key · "Old Arizona" preview. Plain JavaScript, no libraries. */
 (function () {
   'use strict';
-  window.DBK = 1;
+  window.DBK = {};
   var D = document, R = D.documentElement;
   function $(s, c) { return (c || D).querySelector(s); }
   function $$(s, c) { return Array.prototype.slice.call((c || D).querySelectorAll(s)); }
@@ -39,6 +39,64 @@
     links.forEach(function (a, i) { a.classList.toggle('on', i === best); });
   }
   onScroll();
+
+  /* ---- rattlesnakes: built by script so the body tapers, carries its diamonds and can rattle ---- */
+  var NS = 'http://www.w3.org/2000/svg';
+  function mk(tag, cls, par) { var n = D.createElementNS(NS, tag); if (cls) n.setAttribute('class', cls); par.appendChild(n); return n; }
+  function Snake(host) {
+    var s = this, i, u, r, o, b, d, band, a, h, q;
+    s.host = host; s.dir = +host.dataset.dir || 1; s.g = mk('g', 'snk', $('svg', host));
+    s.W = host.clientWidth; s.k = s.W < 700 ? 0.72 : 1; s.sp = 8 * s.k; s.n = 78; s.len = s.n * s.sp;
+    s.A = 17 * s.k; s.wl = 6.283 / (150 * s.k);
+    var go = mk('g', '', s.g), gb = mk('g', '', s.g), gd = mk('g', '', s.g);
+    s.seg = [];
+    for (i = s.n - 1; i >= 0; i--) { /* tail first, so the neck lies on top */
+      u = i / (s.n - 1);
+      r = (u < 0.3 ? 5.4 + 4.2 * Math.pow(u / 0.3, 0.7) : u < 0.58 ? 9.6 : 9.6 - 6.9 * Math.pow((u - 0.58) / 0.42, 1.15)) * s.k;
+      band = u > 0.88; d = null;
+      o = mk('ellipse', 'o', go); b = mk('ellipse', band ? (Math.floor(i / 2) % 2 ? 'bk' : 'wt') : 'b', gb);
+      o.setAttribute('rx', (s.sp * 0.95 + 1.2).toFixed(1)); o.setAttribute('ry', (r + 1.3).toFixed(1));
+      b.setAttribute('rx', (s.sp * 0.95).toFixed(1)); b.setAttribute('ry', r.toFixed(1));
+      if (!band && i > 2 && i % 3 === 0) { d = mk('path', 'dm', gd); a = (s.sp * 1.45).toFixed(1); h = (r * 0.78).toFixed(1); d.setAttribute('d', 'M-' + a + ' 0L0 -' + h + 'L' + a + ' 0L0 ' + h + 'Z'); }
+      s.seg.push({ i: i, o: o, b: b, d: d });
+    }
+    s.rat = [];
+    for (i = 0; i < 5; i++) { q = mk('ellipse', 'rt', s.g); q.setAttribute('rx', ((3.7 - i * 0.3) * s.k).toFixed(1)); q.setAttribute('ry', ((3.5 - i * 0.4) * s.k).toFixed(1)); s.rat.push(q); }
+    s.head = mk('g', '', s.g);
+    s.head.innerHTML = '<g transform="scale(' + (s.k * 1.28).toFixed(2) + ')"><path class="tg" d="M15 0h9l5-3M24 0l5 3"/><path class="hd" d="M-9 -6.5C-3 -10.5 9 -9 15 -3.5 17 -1.5 17 1.5 15 3.5 9 9 -3 10.5 -9 6.5 -11 3 -11 -3 -9 -6.5Z"/><path class="dm" d="M-6 0L1 -3.5 8 0 1 3.5Z"/><circle class="ey" cx="7" cy="-5" r="1.5"/><circle class="ey" cx="7" cy="5" r="1.5"/></g>';
+    s.x = -40; s.wait = 0; s.rattle = 0; s.boost = 0; s.cool = 0; s.seen = false;
+    s.fit();
+  }
+  Snake.prototype.fit = function () { this.W = this.host.clientWidth; this.g.setAttribute('transform', this.dir < 0 ? 'translate(' + this.W + ' 0) scale(-1 1)' : ''); };
+  Snake.prototype.place = function (t) {
+    var s = this, j, sg, x, y, ang, tf, shake = s.rattle > 0 ? Math.sin(t * 190) * 3.2 * s.k : Math.sin(t * 7) * 0.6;
+    for (j = 0; j < s.seg.length; j++) {
+      sg = s.seg[j]; x = s.x - (sg.i + 2) * s.sp; y = 30 + s.A * Math.sin(x * s.wl); ang = Math.atan(s.A * s.wl * Math.cos(x * s.wl)) * 57.296;
+      tf = 'translate(' + x.toFixed(1) + ' ' + y.toFixed(1) + ') rotate(' + ang.toFixed(1) + ')';
+      sg.o.setAttribute('transform', tf); sg.b.setAttribute('transform', tf); if (sg.d) sg.d.setAttribute('transform', tf);
+    }
+    for (j = 0; j < 5; j++) {
+      x = s.x - (s.n + 2.3 + j * 0.62) * s.sp; y = 30 + s.A * Math.sin(x * s.wl) + shake * (0.4 + j * 0.25) - (s.rattle > 0 ? (j + 1) * 1.7 * s.k : 0);
+      s.rat[j].setAttribute('transform', 'translate(' + x.toFixed(1) + ' ' + y.toFixed(1) + ')');
+    }
+    x = s.x; y = 30 + s.A * Math.sin(x * s.wl); ang = Math.atan(s.A * s.wl * Math.cos(x * s.wl)) * 57.296;
+    s.head.setAttribute('transform', 'translate(' + x.toFixed(1) + ' ' + y.toFixed(1) + ') rotate(' + (ang * 0.7).toFixed(1) + ')' + (s.rattle > 0 ? ' scale(1.2)' : ''));
+  };
+  Snake.prototype.step = function (dt, t, px, py) {
+    var s = this, r, hx, hy;
+    if (s.wait > 0) { s.wait -= dt; return; }
+    if (s.cool > 0) s.cool -= dt;
+    if (s.rattle > 0) s.rattle -= dt;
+    else { s.x += 105 * s.k * dt * (s.boost > 0 ? 2 : 1); if (s.boost > 0) s.boost -= dt; }
+    if (px != null && s.cool <= 0) { /* the pointer came close: stop, rattle, then hurry off */
+      r = s.host.getBoundingClientRect(); hx = r.left + (s.dir < 0 ? s.W - s.x : s.x); hy = r.top + 30;
+      if (Math.abs(px - hx) < 130 && Math.abs(py - hy) < 110) { s.rattle = 1.1; s.boost = 1.5; s.cool = 4.5; puff(hx, hy, 6, 70, 9, 0.6); }
+    }
+    if (s.x > s.W + s.len + 90) { s.x = -40; s.wait = 2.2; }
+    s.place(t);
+  };
+  var snakes = $$('.snake').map(function (h) { var s = new Snake(h); s.x = s.W * 0.62 + s.len * 0.5; s.place(0); return s; });
+  window.DBK.snakes = snakes; /* for checking a pose from the console */
 
   if (reduce) { addEventListener('scroll', onScroll, { passive: true }); addEventListener('resize', onScroll); return; }
 
@@ -262,14 +320,32 @@
     if (autoOn.length > 3) city(autoOn.shift(), false);
   }, 1100);
 
+  /* ---- snakes only move while on screen; the train robbery starts from the top when it scrolls in ---- */
+  snakes.forEach(function (s) { s.x = -40; s.place(0); });
+  var seenIO = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) { snakes.forEach(function (s) { if (s.host === en.target) s.seen = en.isIntersecting; }); });
+  }, { rootMargin: '60px' });
+  snakes.forEach(function (s) { seenIO.observe(s.host); });
+  var train = $('.train'), trainLeft = 0;
+  new IntersectionObserver(function (entries) {
+    var on = entries[0].isIntersecting;
+    if (on && train.getAnimations && performance.now() - trainLeft > 2500) {
+      var tt = parseFloat(getComputedStyle(train).getPropertyValue('--tt')) * 1000 || 36000;
+      train.getAnimations({ subtree: true }).forEach(function (an) { try { an.currentTime = tt * 0.13; } catch (e) {} });
+    }
+    if (!on) trainLeft = performance.now();
+    train.classList.toggle('run', on);
+  }).observe(train);
+
   /* ---- one loop drives everything that moves by script ---- */
   addEventListener('scroll', function () { dirty = true; }, { passive: true });
-  addEventListener('resize', function () { size(); dirty = true; });
+  addEventListener('resize', function () { size(); dirty = true; snakes.forEach(function (s) { s.fit(); }); });
   var last = performance.now();
   function frame(now) {
     var real = Math.min(2, (now - last) / 1000), dt = Math.min(0.05, real); last = now;
     if (dirty) { dirty = false; onScroll(); parallax(); }
     drift(now / 1000);
+    snakes.forEach(function (s) { if (s.seen) s.step(dt, now / 1000, fine ? lastX : null, lastY); });
     sources(dt, now);
     fx(dt, now / 1000, real);
     requestAnimationFrame(frame);
